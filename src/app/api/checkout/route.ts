@@ -9,14 +9,32 @@ export async function POST(request: Request) {
     const clientId = process.env.SHOPIFY_CLIENT_ID;
     const clientSecret = process.env.SHOPIFY_CLIENT_SECRET;
 
-    const adminToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN?.trim();
-
-    if (!adminToken) {
-      console.error("DEBUG: SHOPIFY_ADMIN_ACCESS_TOKEN is missing");
-      return NextResponse.json({ error: 'Falta la credencial SHOPIFY_ADMIN_ACCESS_TOKEN' }, { status: 500 });
+    if (!clientId || !clientSecret) {
+      return NextResponse.json({ error: 'Faltan credenciales de Shopify (Client ID / Secret)' }, { status: 500 });
     }
-    
-    console.log("DEBUG: Attempting order creation on domain:", domain);
+
+    // 1. Obtener token dinámico de Shopify
+    const tokenResponse = await fetch(`https://${domain}/admin/oauth/access_token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: 'client_credentials'
+      })
+    });
+
+    const tokenData = await tokenResponse.json();
+    if (!tokenData.access_token) {
+      console.error("Error obteniendo token:", tokenData);
+      return NextResponse.json({ 
+        error: 'No se pudo autenticar con Shopify Admin API',
+        details: tokenData 
+      }, { status: 500 });
+    }
+
+    const adminToken = tokenData.access_token;
+    console.log("DEBUG: Token obtenido exitosamente");
 
     // 2. Separar nombre completo en firstName y lastName para Shopify
     const nameParts = (customer.fullName || customer.firstName || '').trim().split(/\s+/);
