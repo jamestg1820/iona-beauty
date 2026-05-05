@@ -5,7 +5,10 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { items, customer, shippingAddress, note } = body;
 
-    const domain = process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN?.trim();
+    let domain = process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN?.trim() || '';
+    // Limpiar el dominio de protocolos y barras diagonales
+    domain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    
     const clientId = process.env.SHOPIFY_CLIENT_ID?.trim();
     const clientSecret = process.env.SHOPIFY_CLIENT_SECRET?.trim();
 
@@ -24,7 +27,18 @@ export async function POST(request: Request) {
       })
     });
 
-    const tokenData = await tokenResponse.json();
+    const tokenText = await tokenResponse.text();
+    let tokenData;
+    try {
+      tokenData = JSON.parse(tokenText);
+    } catch (e) {
+      console.error("Shopify no devolvió JSON:", tokenText);
+      return NextResponse.json({ 
+        error: 'Shopify no respondió en formato JSON', 
+        details: tokenText.substring(0, 200),
+        domain: domain
+      }, { status: 500 });
+    }
     
     if (!tokenResponse.ok) {
       console.error("Error de autenticación Shopify:", tokenData);
