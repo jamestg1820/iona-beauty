@@ -5,17 +5,36 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { items, customer, shippingAddress, note } = body;
 
-    const domain = process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN;
-    const clientId = process.env.SHOPIFY_CLIENT_ID;
-    const clientSecret = process.env.SHOPIFY_CLIENT_SECRET;
+    const domain = process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN?.trim();
+    const clientId = process.env.SHOPIFY_CLIENT_ID?.trim();
+    const clientSecret = process.env.SHOPIFY_CLIENT_SECRET?.trim();
 
-    const adminToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN?.trim();
-
-    if (!adminToken) {
-      return NextResponse.json({ error: 'Falta la credencial SHOPIFY_ADMIN_ACCESS_TOKEN en Vercel' }, { status: 500 });
+    if (!clientId || !clientSecret || !domain) {
+      return NextResponse.json({ error: 'Faltan credenciales (ID/Secret/Domain) en Vercel' }, { status: 500 });
     }
 
-    console.log("DEBUG: Usando token directo para el dominio:", domain);
+    // 1. Obtener token dinámico de Shopify
+    const tokenResponse = await fetch(`https://${domain}/admin/oauth/access_token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: 'client_credentials'
+      })
+    });
+
+    const tokenData = await tokenResponse.json();
+    
+    if (!tokenResponse.ok) {
+      console.error("Error de autenticación Shopify:", tokenData);
+      return NextResponse.json({ 
+        error: `Error de autenticación Shopify (${tokenResponse.status})`,
+        details: tokenData 
+      }, { status: tokenResponse.status });
+    }
+
+    const adminToken = tokenData.access_token;
 
     // 2. Separar nombre completo en firstName y lastName para Shopify
     const nameParts = (customer.fullName || customer.firstName || '').trim().split(/\s+/);
