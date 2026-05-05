@@ -1,0 +1,284 @@
+"use client";
+
+import { useState } from "react";
+import { toast } from "sonner";
+import { useCartStore } from "@/store/cartStore";
+import { useRouter } from "next/navigation";
+import { sendGAEvent } from '@next/third-parties/google';
+
+export default function AddToCart({ product }: { product: any }) {
+  const [quantity, setQuantity] = useState(1);
+  const [selectedOptions, setSelectedOptions] = useState(() => {
+    const initialOptions: Record<string, string> = {};
+    product.options?.forEach((option: any) => {
+      if (option.name !== 'Title' || !option.values.includes('Default Title')) {
+        initialOptions[option.name] = option.values[0];
+      }
+    });
+    return initialOptions;
+  });
+
+  const addItem = useCartStore((state) => state.addItem);
+  const router = useRouter();
+
+  const handleDecrease = () => {
+    if (quantity > 1) setQuantity(quantity - 1);
+  };
+
+  const handleIncrease = () => {
+    setQuantity(quantity + 1);
+  };
+
+  // Encontrar la variante actual basada en las opciones seleccionadas
+  const selectedVariant = product.variants.find((variant: any) => 
+    variant.selectedOptions.every((opt: any) => selectedOptions[opt.name] === opt.value)
+  ) || product.variants[0];
+
+  const handleAddToCart = () => {
+    const cartProduct = {
+      id: selectedVariant.id, // Usamos variantId como ID único en el carrito
+      handle: product.handle || '',
+      name: product.title || product.name,
+      price: selectedVariant.price,
+      image: selectedVariant.image?.url || (product.images ? product.images[0]?.url : product.image),
+      variantId: selectedVariant.id,
+      selectedOptions: selectedOptions
+    };
+
+    addItem(cartProduct, quantity);
+    
+    // 🎯 RASTREO: Enviar evento AddToCart a Google Analytics 4
+    sendGAEvent('event', 'add_to_cart', {
+      currency: 'COP',
+      value: selectedVariant.price * quantity,
+      items: [
+        {
+          item_id: selectedVariant.id,
+          item_name: product.title || product.name,
+          price: selectedVariant.price,
+          quantity: quantity
+        }
+      ]
+    });
+
+    // 🎯 RASTREO: Enviar evento AddToCart a Facebook (Pixel + CAPI)
+    const eventId = `atc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // 1. Envío al Píxel (Navegador)
+    if (typeof window !== 'undefined' && window.fbq) {
+      window.fbq('track', 'AddToCart', {
+        content_ids: [selectedVariant.id],
+        content_name: product.title,
+        content_type: 'product',
+        value: selectedVariant.price * quantity,
+        currency: 'COP'
+      }, { eventID: eventId });
+    }
+
+    // 2. Envío a CAPI (Servidor)
+    const sendCAPI = async () => {
+      try {
+        const getCookie = (name: string) => {
+          const value = `; ${document.cookie}`;
+          const parts = value.split(`; ${name}=`);
+          if (parts.length === 2) return parts.pop()?.split(';').shift();
+          return null;
+        };
+
+        await fetch('/api/meta-events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            eventName: 'AddToCart',
+            eventId: eventId,
+            url: window.location.href,
+            clientData: {
+              fbp: getCookie('_fbp'),
+              fbc: getCookie('_fbc'),
+            },
+            customData: {
+              content_ids: [selectedVariant.id],
+              content_name: product.title,
+              content_type: 'product',
+              value: selectedVariant.price * quantity,
+              currency: 'COP'
+            }
+          })
+        });
+      } catch (err) {
+        console.error('CAPI Error:', err);
+      }
+    };
+
+    sendCAPI();
+
+    toast.success("Producto agregado al carrito");
+  };
+
+  const handleBuyNow = () => {
+    const cartProduct = {
+      id: selectedVariant.id,
+      handle: product.handle || '',
+      name: product.title || product.name,
+      price: selectedVariant.price,
+      image: selectedVariant.image?.url || (product.images ? product.images[0]?.url : product.image),
+      variantId: selectedVariant.id,
+      selectedOptions: selectedOptions
+    };
+    addItem(cartProduct, quantity, false);
+    
+    // 🎯 RASTREO: Enviar evento InitiateCheckout a Google Analytics 4
+    sendGAEvent('event', 'begin_checkout', {
+      currency: 'COP',
+      value: selectedVariant.price * quantity,
+      items: [
+        {
+          item_id: selectedVariant.id,
+          item_name: product.title || product.name,
+          price: selectedVariant.price,
+          quantity: quantity
+        }
+      ]
+    });
+
+    // 🎯 RASTREO: Enviar evento InitiateCheckout a Facebook (Pixel + CAPI)
+    const eventId = `ic_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // 1. Envío al Píxel (Navegador)
+    if (typeof window !== 'undefined' && window.fbq) {
+      window.fbq('track', 'InitiateCheckout', {
+        content_ids: [selectedVariant.id],
+        content_name: product.title,
+        content_type: 'product',
+        value: selectedVariant.price * quantity,
+        currency: 'COP'
+      }, { eventID: eventId });
+    }
+
+    // 2. Envío a CAPI (Servidor)
+    const sendCAPI = async () => {
+      try {
+        const getCookie = (name: string) => {
+          const value = `; ${document.cookie}`;
+          const parts = value.split(`; ${name}=`);
+          if (parts.length === 2) return parts.pop()?.split(';').shift();
+          return null;
+        };
+
+        // No esperamos (await) el fetch para no bloquear la redirección
+        fetch('/api/meta-events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          keepalive: true, // Importante para que el request sobreviva a la navegación
+          body: JSON.stringify({
+            eventName: 'InitiateCheckout',
+            eventId: eventId,
+            url: window.location.href,
+            clientData: {
+              fbp: getCookie('_fbp'),
+              fbc: getCookie('_fbc'),
+            },
+            customData: {
+              content_ids: [selectedVariant.id],
+              content_name: product.title,
+              content_type: 'product',
+              value: selectedVariant.price * quantity,
+              currency: 'COP'
+            }
+          })
+        }).catch(err => console.error('CAPI Error:', err));
+      } catch (err) {
+        console.error('CAPI Error:', err);
+      }
+    };
+
+    sendCAPI();
+
+    // Redirigir al checkout
+    router.push('/checkout');
+  };
+
+  return (
+    <div className="flex flex-col">
+      {/* Opciones del Producto (Lista de Colores) */}
+      <div className="order-2 md:order-1 flex flex-col space-y-8 mt-8 md:mt-0">
+        {product.options && product.options
+          .filter((option: any) => !(option.name === 'Title' && option.values.includes('Default Title')))
+          .map((option: any) => {
+            const isColor = option.name.toLowerCase().includes('color');
+            return (
+              <div key={option.name} className="flex flex-col space-y-4">
+                <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">
+                  SELECCIONA {option.name}: <span className="font-light text-gray-500 ml-2">{selectedOptions[option.name]}</span>
+                </h3>
+                <div className="flex flex-col space-y-2">
+                  {option.values.map((value: string) => (
+                    <button
+                      key={value}
+                      onClick={() => setSelectedOptions(prev => ({ ...prev, [option.name]: value }))}
+                      className={`flex items-center w-full px-5 py-4 rounded-xl border-2 transition-all duration-300 text-left group ${
+                        selectedOptions[option.name] === value 
+                          ? 'border-primary bg-primary text-gray-800 shadow-lg transform scale-[1.01]' 
+                          : 'border-gray-100 bg-white text-gray-700 hover:border-primary'
+                      }`}
+                    >
+                      <div className={`w-5 h-5 rounded-full border-2 mr-4 flex items-center justify-center transition-all duration-300 ${
+                        selectedOptions[option.name] === value 
+                          ? 'border-white bg-white' 
+                          : 'border-gray-300 bg-transparent group-hover:border-gray-400'
+                      }`}>
+                        {selectedOptions[option.name] === value && (
+                          <div className="w-2.5 h-2.5 rounded-full bg-gray-800 animate-in fade-in zoom-in duration-300" />
+                        )}
+                      </div>
+                      <span className="text-[13px] font-black uppercase tracking-widest">{value}</span>
+                      {selectedOptions[option.name] === value && (
+                        <span className="ml-auto text-[10px] font-bold opacity-60">SELECCIONADO</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+      </div>
+
+      <div className="order-1 md:order-2 flex flex-col items-center w-full space-y-4 md:mt-8">
+        {/* Selector de Cantidad Estilo Pill (A la izquierda) */}
+        <div className="w-full flex justify-start">
+          <div className="flex items-center justify-between border border-gray-200 rounded-full w-[100px] px-3 py-2 bg-gray-50/50">
+            <button onClick={handleDecrease} className="w-6 h-6 flex items-center justify-center text-lg font-bold text-gray-400 hover:text-black transition-colors">−</button>
+            <span className="font-black text-sm text-gray-900">{quantity}</span>
+            <button onClick={handleIncrease} className="w-6 h-6 flex items-center justify-center text-lg font-bold text-gray-400 hover:text-black transition-colors">+</button>
+          </div>
+        </div>
+
+        {/* Botón de Comprar (Checkout Inmediato) */}
+        <button 
+          onClick={handleBuyNow}
+          className="w-full bg-secondary text-white py-4 rounded-full font-black tracking-[0.2em] text-sm hover:bg-black transition-all duration-300 shadow-xl active:scale-[0.98] mx-auto"
+        >
+          COMPRAR AHORA
+        </button>
+
+        {/* Botón de Agregar al carrito */}
+        <button 
+          onClick={handleAddToCart}
+          data-add-to-cart
+          className="w-full bg-primary text-gray-800 py-4 rounded-full font-black tracking-[0.2em] text-sm hover:bg-black hover:text-white transition-all duration-300 shadow-xl active:scale-[0.98] mx-auto"
+        >
+          AGREGAR AL CARRITO
+        </button>
+
+        {/* Imagen de Medios de Pago Centrada */}
+        <div className="w-full max-w-[260px] flex justify-center mx-auto mt-2">
+          <img 
+            src="https://parchita.com.co/cdn/shop/files/Medios-de-pago_1.png?v=1754669083&width=600" 
+            alt="Medios de Pago" 
+            className="w-full h-auto opacity-80"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
