@@ -9,11 +9,14 @@ export async function POST(request: Request) {
     const clientId = process.env.SHOPIFY_CLIENT_ID;
     const clientSecret = process.env.SHOPIFY_CLIENT_SECRET;
 
-    const adminToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
+    const adminToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN?.trim();
 
     if (!adminToken) {
+      console.error("DEBUG: SHOPIFY_ADMIN_ACCESS_TOKEN is missing");
       return NextResponse.json({ error: 'Falta la credencial SHOPIFY_ADMIN_ACCESS_TOKEN' }, { status: 500 });
     }
+    
+    console.log("DEBUG: Attempting order creation on domain:", domain);
 
     // 2. Separar nombre completo en firstName y lastName para Shopify
     const nameParts = (customer.fullName || customer.firstName || '').trim().split(/\s+/);
@@ -92,16 +95,11 @@ export async function POST(request: Request) {
     const data = await response.json();
 
     if (!response.ok) {
-      console.error("Error creando orden en Shopify:", data);
-      let errorMessage = 'Error al crear la orden en Shopify';
-      if (data.errors) {
-        if (typeof data.errors === 'string') {
-          errorMessage = data.errors;
-        } else if (typeof data.errors === 'object') {
-          errorMessage = JSON.stringify(data.errors);
-        }
-      }
-      return NextResponse.json({ error: errorMessage, details: data }, { status: response.status });
+      console.error("ERROR SHOPIFY ADMIN API:", response.status, data);
+      return NextResponse.json({ 
+        error: `Error de Shopify (${response.status}): ${JSON.stringify(data.errors || data)}`,
+        debug_domain: domain
+      }, { status: response.status });
     }
 
     // 🚀 4. ENVIAR A FACEBOOK CONVERSIONS API (CAPI)
