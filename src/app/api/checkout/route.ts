@@ -177,17 +177,14 @@ export async function POST(request: Request) {
               content_ids: items.map((item: any) => item.product.id),
               num_items: items.reduce((total: number, item: any) => total + item.quantity, 0)
             }
-          }],
-          test_event_code: 'TEST89490'
+          }]
         };
 
-        const fbResponse = await fetch(`https://graph.facebook.com/v19.0/${pixelId}/events?access_token=${accessToken}`, {
+        await fetch(`https://graph.facebook.com/v19.0/${pixelId}/events?access_token=${accessToken}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(fbPayload)
         });
-        const fbResult = await fbResponse.json();
-        console.log(`[CAPI DEBUG] Event: Purchase, Pixel: ${pixelId}, Status: ${fbResponse.status}`, fbResult);
       }
     } catch (fbError) {
       console.error("Error enviando a Facebook CAPI:", fbError);

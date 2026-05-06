@@ -26,9 +26,9 @@ export async function POST(request: NextRequest) {
       data: [{
         event_name: eventName,
         event_time: Math.floor(Date.now() / 1000),
-        event_id: eventId, // ← CLAVE: debe coincidir con el eventID del Pixel
+        event_id: eventId,
         action_source: 'website',
-        event_source_url: sourceUrl || request.url, // ← Usar la URL del navegador, NO la de la API
+        event_source_url: sourceUrl || request.url,
         user_data: {
           client_ip_address: ipAddress,
           client_user_agent: userAgent,
@@ -36,11 +36,10 @@ export async function POST(request: NextRequest) {
           fbc: clientData?.fbc || undefined,
           em: clientData?.email ? [hash(clientData.email)] : undefined,
           ph: clientData?.phone ? [hash(clientData.phone)] : undefined,
-          external_id: externalIdHashed ? [externalIdHashed] : undefined, // ← NUEVO: mejora coincidencia
+          external_id: externalIdHashed ? [externalIdHashed] : undefined,
         },
         custom_data: customData
-      }],
-      test_event_code: 'TEST89490'
+      }]
     };
 
     const response = await fetch(`https://graph.facebook.com/v19.0/${pixelId}/events?access_token=${accessToken}`, {
@@ -50,7 +49,6 @@ export async function POST(request: NextRequest) {
     });
 
     const result = await response.json();
-    console.log(`[CAPI DEBUG] Event: ${eventName}, Pixel: ${pixelId}, Status: ${response.status}`, result);
     return NextResponse.json(result);
   } catch (error: any) {
     console.error("Error en Meta Events API:", error);
