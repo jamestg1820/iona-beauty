@@ -137,7 +137,7 @@ export async function POST(request: Request) {
     // 🚀 4. ENVIAR A FACEBOOK CONVERSIONS API (CAPI)
     try {
       const accessToken = process.env.FB_ACCESS_TOKEN;
-      const pixelId = '803936628572207'; // Tu ID de Píxel
+      const pixelId = process.env.NEXT_PUBLIC_FB_PIXEL_ID || ''; // Tu ID de Píxel
 
       if (accessToken) {
         // Función simple para hash SHA256 (Meta lo requiere para privacidad)
