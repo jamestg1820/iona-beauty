@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
     });
 
     const result = await response.json();
+    console.log(`[CAPI DEBUG] Event: ${eventName}, Pixel: ${pixelId}, Status: ${response.status}`, result);
     return NextResponse.json(result);
   } catch (error: any) {
     console.error("Error en Meta Events API:", error);
