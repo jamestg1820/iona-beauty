@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
-
 import { sendGAEvent } from '@next/third-parties/google';
+import { buildClientData } from '@/lib/fbHelpers';
 
 interface MetaProductViewProps {
   product: {
@@ -41,27 +41,17 @@ export default function MetaProductView({ product }: MetaProductViewProps) {
       }, { eventID: eventId });
     }
 
-    // 2. Envío a CAPI (Servidor)
+    // 2. Envío a CAPI (Servidor) — incluye external_id para mejor coincidencia
     const sendCAPI = async () => {
       try {
-        const getCookie = (name: string) => {
-          const value = `; ${document.cookie}`;
-          const parts = value.split(`; ${name}=`);
-          if (parts.length === 2) return parts.pop()?.split(';').shift();
-          return null;
-        };
-
         await fetch('/api/meta-events', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             eventName: 'ViewContent',
             eventId: eventId,
-            url: window.location.href,
-            clientData: {
-              fbp: getCookie('_fbp'),
-              fbc: getCookie('_fbc'),
-            },
+            sourceUrl: window.location.href,
+            clientData: buildClientData(),
             customData: {
               content_ids: [product.id],
               content_name: product.title,

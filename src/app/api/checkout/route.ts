@@ -142,7 +142,11 @@ export async function POST(request: Request) {
       if (accessToken) {
         // Función simple para hash SHA256 (Meta lo requiere para privacidad)
         const crypto = require('crypto');
-        const hash = (val: string) => crypto.createHash('sha256').update(val.toLowerCase().trim()).digest('hex');
+        const hash = (val: string) => val ? crypto.createHash('sha256').update(val.toLowerCase().trim()).digest('hex') : null;
+
+        // external_id consistente: email si existe, sino fbp, sino IP+UA
+        const externalIdRaw = customer.email || body.fbp || `${request.headers.get('x-forwarded-for')?.split(',')[0]}_${request.headers.get('user-agent')}`;
+        const externalIdHashed = hash(externalIdRaw || 'guest');
 
         const fbPayload = {
           data: [{
@@ -150,21 +154,21 @@ export async function POST(request: Request) {
             event_time: Math.floor(Date.now() / 1000),
             event_id: body.eventId, // MISMO ID DEL CLIENTE PARA DEDUPLICACIÓN
             action_source: 'website',
-            event_source_url: request.url,
+            event_source_url: body.sourceUrl || `https://${request.headers.get('host')}/checkout`, // URL del navegador
               user_data: {
-                em: [hash(customer.email || '')],
-                ph: [hash(customer.phone || '')],
+                em: customer.email ? [hash(customer.email)] : undefined,
+                ph: customer.phone ? [hash(customer.phone)] : undefined,
                 fn: [hash(firstName)],
                 ln: [hash(lastName)],
-                ct: [hash(shippingAddress.city || '')],
-                st: [hash(shippingAddress.province || '')],
-                zp: [hash(shippingAddress.zip || '')], // ZIP/Código Postal
+                ct: shippingAddress.city ? [hash(shippingAddress.city)] : undefined,
+                st: shippingAddress.province ? [hash(shippingAddress.province)] : undefined,
+                zp: shippingAddress.zip ? [hash(shippingAddress.zip)] : undefined,
                 country: [hash('co')],
-                external_id: [hash(customer.email || 'guest')], // ID Externo (Recomendado)
+                external_id: externalIdHashed ? [externalIdHashed] : undefined, // ID Externo consistente
                 client_ip_address: request.headers.get('x-forwarded-for')?.split(',')[0] || '127.0.0.1',
                 client_user_agent: request.headers.get('user-agent') || '',
-                fbp: body.fbp, // Browser ID
-                fbc: body.fbc, // Click ID
+                fbp: body.fbp || undefined, // Browser ID
+                fbc: body.fbc || undefined, // Click ID
               },
             custom_data: {
               value: items.reduce((total: number, item: any) => total + (item.product.price * item.quantity), 0),

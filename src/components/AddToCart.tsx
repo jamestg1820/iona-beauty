@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useCartStore } from "@/store/cartStore";
 import { useRouter } from "next/navigation";
 import { sendGAEvent } from '@next/third-parties/google';
+import { buildClientData } from "@/lib/fbHelpers";
 
 export default function AddToCart({ product }: { product: any }) {
   const [quantity, setQuantity] = useState(1);
@@ -64,7 +65,7 @@ export default function AddToCart({ product }: { product: any }) {
     // 🎯 RASTREO: Enviar evento AddToCart a Facebook (Pixel + CAPI)
     const eventId = `atc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // 1. Envío al Píxel (Navegador)
+    // 1. Envío al Píxel (Navegador) — usa el MISMO eventId para deduplicación
     if (typeof window !== 'undefined' && window.fbq) {
       window.fbq('track', 'AddToCart', {
         content_ids: [selectedVariant.id],
@@ -75,27 +76,17 @@ export default function AddToCart({ product }: { product: any }) {
       }, { eventID: eventId });
     }
 
-    // 2. Envío a CAPI (Servidor)
+    // 2. Envío a CAPI (Servidor) — incluye external_id para mejor coincidencia
     const sendCAPI = async () => {
       try {
-        const getCookie = (name: string) => {
-          const value = `; ${document.cookie}`;
-          const parts = value.split(`; ${name}=`);
-          if (parts.length === 2) return parts.pop()?.split(';').shift();
-          return null;
-        };
-
         await fetch('/api/meta-events', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             eventName: 'AddToCart',
             eventId: eventId,
-            url: window.location.href,
-            clientData: {
-              fbp: getCookie('_fbp'),
-              fbc: getCookie('_fbc'),
-            },
+            sourceUrl: window.location.href,
+            clientData: buildClientData(),
             customData: {
               content_ids: [selectedVariant.id],
               content_name: product.title,
@@ -144,7 +135,7 @@ export default function AddToCart({ product }: { product: any }) {
     // 🎯 RASTREO: Enviar evento InitiateCheckout a Facebook (Pixel + CAPI)
     const eventId = `ic_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // 1. Envío al Píxel (Navegador)
+    // 1. Envío al Píxel (Navegador) — usa el MISMO eventId para deduplicación
     if (typeof window !== 'undefined' && window.fbq) {
       window.fbq('track', 'InitiateCheckout', {
         content_ids: [selectedVariant.id],
@@ -155,44 +146,25 @@ export default function AddToCart({ product }: { product: any }) {
       }, { eventID: eventId });
     }
 
-    // 2. Envío a CAPI (Servidor)
-    const sendCAPI = async () => {
-      try {
-        const getCookie = (name: string) => {
-          const value = `; ${document.cookie}`;
-          const parts = value.split(`; ${name}=`);
-          if (parts.length === 2) return parts.pop()?.split(';').shift();
-          return null;
-        };
-
-        // No esperamos (await) el fetch para no bloquear la redirección
-        fetch('/api/meta-events', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          keepalive: true, // Importante para que el request sobreviva a la navegación
-          body: JSON.stringify({
-            eventName: 'InitiateCheckout',
-            eventId: eventId,
-            url: window.location.href,
-            clientData: {
-              fbp: getCookie('_fbp'),
-              fbc: getCookie('_fbc'),
-            },
-            customData: {
-              content_ids: [selectedVariant.id],
-              content_name: product.title,
-              content_type: 'product',
-              value: selectedVariant.price * quantity,
-              currency: 'COP'
-            }
-          })
-        }).catch(err => console.error('CAPI Error:', err));
-      } catch (err) {
-        console.error('CAPI Error:', err);
-      }
-    };
-
-    sendCAPI();
+    // 2. Envío a CAPI (Servidor) — incluye external_id para mejor coincidencia
+    fetch('/api/meta-events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      keepalive: true, // Importante para que el request sobreviva a la navegación
+      body: JSON.stringify({
+        eventName: 'InitiateCheckout',
+        eventId: eventId,
+        sourceUrl: window.location.href,
+        clientData: buildClientData(),
+        customData: {
+          content_ids: [selectedVariant.id],
+          content_name: product.title,
+          content_type: 'product',
+          value: selectedVariant.price * quantity,
+          currency: 'COP'
+        }
+      })
+    }).catch(err => console.error('CAPI Error:', err));
 
     // Redirigir al checkout
     router.push('/checkout');

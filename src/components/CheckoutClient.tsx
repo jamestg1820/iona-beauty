@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ShieldCheck, Truck } from "lucide-react";
+import { getCookie, getExternalId } from "@/lib/fbHelpers";
 
 // Extender window para TypeScript (fbq ya está declarado en FacebookPixel.tsx)
 declare global {
@@ -48,19 +49,14 @@ export default function CheckoutClient() {
     const apellidos = " "; 
     
     // Capturar cookies de Facebook para CAPI
-    const getCookie = (name: string) => {
-      const value = `; ${document.cookie}`;
-      const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) return parts.pop()?.split(';').shift();
-      return null;
-    };
-
     const fbp = getCookie('_fbp');
     const fbc = getCookie('_fbc');
+    const externalId = getExternalId();
     
     const payload = {
       items: items,
       eventId: eventId, // Enviamos el ID al servidor
+      sourceUrl: window.location.href, // URL real del navegador para CAPI
       customer: {
         firstName: nombres,
         lastName: apellidos,
@@ -75,7 +71,8 @@ export default function CheckoutClient() {
       },
       note: formData.get('notas'),
       fbp: fbp,
-      fbc: fbc
+      fbc: fbc,
+      externalId: externalId
     };
 
     try {
