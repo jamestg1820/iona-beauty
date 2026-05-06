@@ -39,7 +39,8 @@ export async function POST(request: NextRequest) {
           external_id: externalIdHashed ? [externalIdHashed] : undefined, // ← NUEVO: mejora coincidencia
         },
         custom_data: customData
-      }]
+      }],
+      test_event_code: 'TEST89490'
     };
 
     const response = await fetch(`https://graph.facebook.com/v19.0/${pixelId}/events?access_token=${accessToken}`, {
