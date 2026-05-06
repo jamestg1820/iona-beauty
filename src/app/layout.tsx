@@ -40,9 +40,9 @@ export default function RootLayout({
       className={`${inter.variable} ${italiana.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-[#F5F5F5]">
-        {/* <Suspense fallback={null}>
+        <Suspense fallback={null}>
           <FacebookPixel />
-        </Suspense> */}
+        </Suspense>
         <Navbar />
         <main className="flex-grow bg-white w-full mx-auto">
           {children}
@@ -51,8 +51,7 @@ export default function RootLayout({
         <CartDrawer />
         <Toaster position="bottom-right" toastOptions={{ style: { background: '#111827', color: '#fff', border: 'none' } }} />
       </body>
-      {/* GA4 — fuera del body para que Next.js lo inyecte en el head correctamente */}
-      {/* <GoogleAnalytics gaId="G-VR4XS3437H" /> */}
+      <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_ID || "G-VR4XS3437H"} />
     </html>
   );
 }
